@@ -16,8 +16,9 @@
 #define INFO(msg, ...) do { fprintf(stdout, "INFO: "); fprintf(stdout, msg, ##__VA_ARGS__); } while(0)
 #define ERROR(msg, ...) do { fprintf(stderr, "ERROR :"); fprintf(stderr, msg, ##__VA_ARGS__); exit(1); } while(0)
 
-#define GRID_WIDTH 20 
-#define GRID_HEIGHT 20
+#define MAX_HEIGHT 50
+#define GRID_WIDTH 200 
+#define GRID_HEIGHT 200
 
 typedef struct {
     float aspectRatio;
@@ -278,8 +279,13 @@ void createTerrain(Ctx* ctx) {
         for(uint32_t x = 0; x < GRID_WIDTH; x++) {
             float x1 = (x - (GRID_WIDTH - 1)/2.0f);
             float z1 = (y - (GRID_HEIGHT - 1)/2.0f);
+            
+            uint32_t noise = ctx->data[y * GRID_WIDTH + x] & 0xff;
+            float y1 = noise / 255.0f;
+            y1 *= MAX_HEIGHT;
+
             data[idx++] = x1;
-            data[idx++] = 0;
+            data[idx++] = y1;
             data[idx++] = z1;
         }
     }
