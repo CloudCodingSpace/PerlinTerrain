@@ -50,7 +50,6 @@ typedef struct {
     uint32_t shader;
     uint32_t vao, vbo, ebo;
     uint32_t count;
-    uint32_t tex;
     
     uint32_t* data;
 } Ctx;
@@ -95,7 +94,7 @@ float getPerlin2D(float x, float y, int octaves) {
     return v/max;
 }
 
-void getTextureColor(uint32_t width, uint32_t height, uint32_t* data) {
+void getHeight(uint32_t width, uint32_t height, uint32_t* data) {
     size_t size = width * height;
 
     float scale = 0.01f;
@@ -348,29 +347,16 @@ int main(void) {
             if(!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
                 ERROR("Couldn't load opengl!\n");
         }
+        //Height map 
+        {
+            ctx.data = malloc(GRID_HEIGHT * GRID_WIDTH * sizeof(uint32_t));
+            memset(ctx.data, 0, sizeof(uint32_t) * GRID_WIDTH * GRID_HEIGHT);
+            getHeight(GRID_WIDTH, GRID_HEIGHT, ctx.data);
+        }
         //Shader
         createShader(&ctx);
         // Buffers 
         createTerrain(&ctx);
-        // Texture
-        {
-            ctx.data = malloc(sizeof(uint32_t) * ctx.width * ctx.height);
-            memset(ctx.data, 0, ctx.width * ctx.height);
-            getTextureColor(ctx.width, ctx.height, ctx.data);
-
-            glGenTextures(1, &ctx.tex);
-            glBindTexture(GL_TEXTURE_2D, ctx.tex);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ctx.width, ctx.height, 0, GL_RGBA, GL_UNSIGNED_BYTE, ctx.data);
-
-            glGenerateMipmap(GL_TEXTURE_2D);
-
-            glBindTexture(GL_TEXTURE_2D, 0);
-        }
         // Camera
         createCamera(&ctx);
     }
@@ -386,9 +372,6 @@ int main(void) {
         glUseProgram(ctx.shader);
         putMat4Shader(ctx.shader, "u_Proj", ctx.camera.proj);
         putMat4Shader(ctx.shader, "u_View", ctx.camera.view);
-
-        glBindTexture(GL_TEXTURE_2D, ctx.tex);
-        glActiveTexture(GL_TEXTURE0);
 
         glBindVertexArray(ctx.vao);
         glDrawElements(GL_TRIANGLES, ctx.count, GL_UNSIGNED_INT, 0);
@@ -412,7 +395,6 @@ int main(void) {
     // Cleanup
     {
         free(ctx.data);
-        glDeleteTextures(1, &ctx.tex);
 
         glDeleteBuffers(1, &ctx.ebo);
         glDeleteBuffers(1, &ctx.vbo);
