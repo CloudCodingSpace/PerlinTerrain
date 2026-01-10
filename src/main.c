@@ -8,7 +8,8 @@
 #include <math.h>
 #include <stdint.h>
 #include <string.h>
-#include <time.h>
+
+#include "maths.h"
 
 #define ARR_LEN(arr) (sizeof(arr)/sizeof(arr[0]))
 
@@ -51,10 +52,6 @@ uint32_t rgbToInt(uint8_t r, uint8_t b, uint8_t g) {
     return (uint32_t)((0xFF << 24) | (b << 16) | (g << 8) | r);
 }
 
-float getRand() {
-    return ((float)rand())/RAND_MAX;
-}
-
 float getPerlin2D(float x, float y, int octaves) {
     float v = 0.0f;
     float amplitude = 1.0f;
@@ -86,6 +83,58 @@ void getTextureColor(uint32_t width, uint32_t height, uint32_t* data) {
     }
 }
 
+void createShader(Ctx* ctx) {
+    char log[512];
+    int success = false;
+    const char* vertStr = readFile("shaders/default.vert");
+    const char* fragStr = readFile("shaders/default.frag");
+
+    uint32_t vID, fID;
+    vID = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(vID, 1, &vertStr, 0);
+    glCompileShader(vID);
+    glGetShaderiv(vID, GL_COMPILE_STATUS, &success);
+    if(!success) {
+        glGetShaderInfoLog(vID, 512, 0, log);
+        ERROR(log);
+    }
+    fID = glCreateShader(GL_FRAGMENT_SHADER);
+    glShaderSource(fID, 1, &fragStr, 0);
+    glCompileShader(fID);
+    glGetShaderiv(fID, GL_COMPILE_STATUS, &success);
+    if(!success) {
+        glGetShaderInfoLog(fID, 512, 0, log);
+        ERROR(log);
+    }
+
+    ctx->shader = glCreateProgram();
+    glAttachShader(ctx->shader, vID);
+    glAttachShader(ctx->shader, fID);
+    glLinkProgram(ctx->shader);
+    glValidateProgram(ctx->shader);
+    glGetProgramiv(ctx->shader, GL_LINK_STATUS, &success);
+    if(!success) {
+        glGetProgramInfoLog(ctx->shader, 1024, 0, log);
+        ERROR(log);
+    }
+    glGetProgramiv(ctx->shader, GL_VALIDATE_STATUS, &success);
+    if(!success) {
+        glGetProgramInfoLog(ctx->shader, 1024, 0, log);
+        ERROR(log);
+    }
+
+    glDeleteShader(vID);
+    glDeleteShader(fID);
+
+    free((void*)vertStr);
+    free((void*)fragStr);
+}
+
+void putMat4Shader(uint32_t id, const char* name, Mat4 mat) {
+    glUseProgram(id);
+    glUniformMatrix4fv(glGetUniformLocation(id, name), 1, GL_FALSE, &mat.data[0]);
+}
+
 int main(void) {
     Ctx ctx = {
         .width = 1200,
@@ -112,52 +161,7 @@ int main(void) {
                 ERROR("Couldn't load opengl!\n");
         }
         //Shader
-        {
-            char log[512];
-            int success = false;
-            const char* vertStr = readFile("shaders/default.vert");
-            const char* fragStr = readFile("shaders/default.frag");
-
-            uint32_t vID, fID;
-            vID = glCreateShader(GL_VERTEX_SHADER);
-            glShaderSource(vID, 1, &vertStr, 0);
-            glCompileShader(vID);
-            glGetShaderiv(vID, GL_COMPILE_STATUS, &success);
-            if(!success) {
-                glGetShaderInfoLog(vID, 512, 0, log);
-                ERROR(log);
-            }
-            fID = glCreateShader(GL_FRAGMENT_SHADER);
-            glShaderSource(fID, 1, &fragStr, 0);
-            glCompileShader(fID);
-            glGetShaderiv(fID, GL_COMPILE_STATUS, &success);
-            if(!success) {
-                glGetShaderInfoLog(fID, 512, 0, log);
-                ERROR(log);
-            }
-
-            ctx.shader = glCreateProgram();
-            glAttachShader(ctx.shader, vID);
-            glAttachShader(ctx.shader, fID);
-            glLinkProgram(ctx.shader);
-            glValidateProgram(ctx.shader);
-            glGetProgramiv(ctx.shader, GL_LINK_STATUS, &success);
-            if(!success) {
-                glGetProgramInfoLog(ctx.shader, 1024, 0, log);
-                ERROR(log);
-            }
-            glGetProgramiv(ctx.shader, GL_VALIDATE_STATUS, &success);
-            if(!success) {
-                glGetProgramInfoLog(ctx.shader, 1024, 0, log);
-                ERROR(log);
-            }
-
-            glDeleteShader(vID);
-            glDeleteShader(fID);
-
-            free((void*)vertStr);
-            free((void*)fragStr);
-        }
+        createShader(&ctx);
         // Buffers 
         {
             float data[] = {
@@ -220,6 +224,11 @@ int main(void) {
 
         glBindVertexArray(ctx.vao);
         glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        if(glfwGetKey(ctx.window, GLFW_KEY_R) == GLFW_PRESS) {
+            glDeleteProgram(ctx.shader);
+            createShader(&ctx);
+        }
 
         glfwSwapBuffers(ctx.window);
         glfwPollEvents();
