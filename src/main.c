@@ -16,6 +16,9 @@
 #define INFO(msg, ...) do { fprintf(stdout, "INFO: "); fprintf(stdout, msg, ##__VA_ARGS__); } while(0)
 #define ERROR(msg, ...) do { fprintf(stderr, "ERROR :"); fprintf(stderr, msg, ##__VA_ARGS__); exit(1); } while(0)
 
+#define GRID_WIDTH 20 
+#define GRID_HEIGHT 20
+
 typedef struct {
     float aspectRatio;
     float fov;
@@ -45,7 +48,8 @@ typedef struct {
     Camera camera;
 
     uint32_t shader;
-    uint32_t vao, vbo;
+    uint32_t vao, vbo, ebo;
+    uint32_t count;
     uint32_t tex;
     
     uint32_t* data;
@@ -268,6 +272,57 @@ void updateCamera(Ctx* ctx) {
     }
 }
 
+void createTerrain(Ctx* ctx) {
+    float data[GRID_WIDTH * GRID_HEIGHT * 3];
+    int idx = 0;
+    for(uint32_t y = 0; y < GRID_HEIGHT; y++) {
+        for(uint32_t x = 0; x < GRID_WIDTH; x++) {
+            float x1 = (x - (GRID_WIDTH - 1)/2.0f);
+            float z1 = (y - (GRID_HEIGHT - 1)/2.0f);
+            data[idx++] = x1;
+            data[idx++] = 0;
+            data[idx++] = z1;
+        }
+    }
+
+    uint32_t indicesLen = (GRID_WIDTH - 1) * (GRID_HEIGHT - 1) * 6;
+    ctx->count = indicesLen;
+    uint32_t indices[indicesLen];
+    idx = 0;
+    for(uint32_t y = 0; y < GRID_HEIGHT-1; y++) {
+        for(uint32_t x = 0; x < GRID_WIDTH-1; x++) {
+            uint32_t v0 = y * GRID_WIDTH + x;
+            uint32_t v1 = y * GRID_WIDTH + (x + 1);
+            uint32_t v2 = (y+1) * GRID_WIDTH + x;
+            uint32_t v3 = (y+1) * GRID_WIDTH + (x+1);
+
+            indices[idx++] = v0;
+            indices[idx++] = v1;
+            indices[idx++] = v2;
+            
+            indices[idx++] = v1;
+            indices[idx++] = v3;
+            indices[idx++] = v2;
+        }
+    }
+
+    glGenVertexArrays(1, &ctx->vao);
+    glGenBuffers(1, &ctx->vbo);
+    glGenBuffers(1, &ctx->ebo);
+
+    glBindVertexArray(ctx->vao);
+
+    glBindBuffer(GL_ARRAY_BUFFER, ctx->vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * ARR_LEN(data), data, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ctx->ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint32_t) * ctx->count, indices, GL_STATIC_DRAW);
+
+    glBindVertexArray(0);
+}
+
 int main(void) {
     Ctx ctx = {
         .width = 1200,
@@ -296,31 +351,7 @@ int main(void) {
         //Shader
         createShader(&ctx);
         // Buffers 
-        {
-            float data[] = {
-                // pos                      uv
-                -1.0f,  1.0f, 0.0f,     0.0f, 1.0f,
-                -1.0f, -1.0f, 0.0f,     0.0f, 0.0f,
-                 1.0f, -1.0f, 0.0f,     1.0f, 0.0f,
-                -1.0f,  1.0f, 0.0f,     0.0f, 1.0f,
-                 1.0f, -1.0f, 0.0f,     1.0f, 0.0f,
-                 1.0f,  1.0f, 0.0f,     1.0f, 1.0f
-            };
-
-            glGenVertexArrays(1, &ctx.vao);
-            glGenBuffers(1, &ctx.vbo);
-
-            glBindVertexArray(ctx.vao);
-
-            glBindBuffer(GL_ARRAY_BUFFER, ctx.vbo);
-            glBufferData(GL_ARRAY_BUFFER, sizeof(float) * ARR_LEN(data), data, GL_STATIC_DRAW);
-            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-            glEnableVertexAttribArray(0);
-            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(sizeof(float) * 3));
-            glEnableVertexAttribArray(1);
-
-            glBindVertexArray(0);
-        }
+        createTerrain(&ctx);
         // Texture
         {
             ctx.data = malloc(sizeof(uint32_t) * ctx.width * ctx.height);
@@ -358,10 +389,9 @@ int main(void) {
 
         glBindTexture(GL_TEXTURE_2D, ctx.tex);
         glActiveTexture(GL_TEXTURE0);
-        glUniform1i(glGetUniformLocation(ctx.shader, "u_Tex"), 0);
 
         glBindVertexArray(ctx.vao);
-        glDrawArrays(GL_TRIANGLES, 0, 6);
+        glDrawElements(GL_TRIANGLES, ctx.count, GL_UNSIGNED_INT, 0);
         
         // Update
         if(glfwGetKey(ctx.window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
@@ -384,6 +414,7 @@ int main(void) {
         free(ctx.data);
         glDeleteTextures(1, &ctx.tex);
 
+        glDeleteBuffers(1, &ctx.ebo);
         glDeleteBuffers(1, &ctx.vbo);
         glDeleteVertexArrays(1, &ctx.vao);
 
