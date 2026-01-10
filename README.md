@@ -1,6 +1,8 @@
-#PerlinTerrain
+# PerlinTerrain
 This is a test project which I made to play around with perlin noise for terrain generation.
 Please excuse me since I can't gurantee that the buildsystem is cross-platform (It was a test project so I didn't intetgrate a proper cross-platform buildsystem).
+
+# Development environment
 The platform I am using :-
  - Windows 10, 64-bit 
  - MinGW-W64 14.1.0
