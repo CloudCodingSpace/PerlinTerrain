@@ -296,12 +296,12 @@ void createTerrain(Ctx* ctx) {
             uint32_t v3 = (y+1) * GRID_WIDTH + (x+1);
 
             indices[idx++] = v0;
-            indices[idx++] = v1;
             indices[idx++] = v2;
+            indices[idx++] = v1;
             
             indices[idx++] = v1;
-            indices[idx++] = v3;
             indices[idx++] = v2;
+            indices[idx++] = v3;
         }
     }
 
