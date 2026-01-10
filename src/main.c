@@ -17,9 +17,32 @@
 #define ERROR(msg, ...) do { fprintf(stderr, "ERROR :"); fprintf(stderr, msg, ##__VA_ARGS__); exit(1); } while(0)
 
 typedef struct {
+    float aspectRatio;
+    float fov;
+    float lastX;
+    float lastY;
+    bool firstMouse;
+    float yaw;
+    float pitch;
+    float sensitivity;
+    float speed;
+
+    Vec3 pos;
+    Vec3 front;
+    Vec3 up;
+    Vec3 right;
+    
+    Mat4 proj;
+    Mat4 view;
+} Camera;
+
+typedef struct {
     GLFWwindow* window;
     int width;
     int height;
+    double mouseX, mouseY;
+    
+    Camera camera;
 
     uint32_t shader;
     uint32_t vao, vbo;
@@ -135,6 +158,116 @@ void putMat4Shader(uint32_t id, const char* name, Mat4 mat) {
     glUniformMatrix4fv(glGetUniformLocation(id, name), 1, GL_FALSE, &mat.data[0]);
 }
 
+void createCamera(Ctx* ctx) {
+    ctx->camera.aspectRatio = ((float)ctx->width)/ctx->height;
+    ctx->camera.fov = 90.0f;
+    ctx->camera.firstMouse = true;
+    ctx->camera.lastX = (float)ctx->width/2;
+    ctx->camera.lastY = (float)ctx->height/2;
+    ctx->camera.yaw = -90.0f;
+    ctx->camera.pitch = 0.0f;
+    ctx->camera.speed = 0.01f;
+    ctx->camera.sensitivity = 0.05f;
+
+    ctx->camera.pos = vec3Create(0, 0, 3);
+    ctx->camera.front = vec3Create(0, 0, -1);
+    ctx->camera.up = vec3Create(0, 1, 0);
+    ctx->camera.right = vec3Normalize(vec3Cross(ctx->camera.up, ctx->camera.front));
+
+    ctx->camera.proj = mat4Perspective(ctx->camera.fov * DEG2RAD_MULTIPLIER, ctx->camera.aspectRatio, 0.01f, 1000.0f);
+    ctx->camera.view = mat4LookAt(ctx->camera.pos, vec3Add(ctx->camera.pos, ctx->camera.front), ctx->camera.up);
+}
+
+void updateCamera(Ctx* ctx) {
+    bool moved = false;
+
+    //Key Input
+    {
+        if(glfwGetKey(ctx->window, GLFW_KEY_W) == GLFW_PRESS) {
+            ctx->camera.pos = vec3Add(ctx->camera.pos, vec3MulScalar(ctx->camera.front, ctx->camera.speed));
+            moved = true;
+        }
+        if(glfwGetKey(ctx->window, GLFW_KEY_S) == GLFW_PRESS) {
+            ctx->camera.pos = vec3Sub(ctx->camera.pos, vec3MulScalar(ctx->camera.front, ctx->camera.speed));
+            moved = true;
+        }
+        if(glfwGetKey(ctx->window, GLFW_KEY_A) == GLFW_PRESS) {
+            ctx->camera.pos = vec3Add(ctx->camera.pos, vec3MulScalar(ctx->camera.right, ctx->camera.speed));
+            moved = true;
+        }
+        if(glfwGetKey(ctx->window, GLFW_KEY_D) == GLFW_PRESS) {
+            ctx->camera.pos = vec3Sub(ctx->camera.pos, vec3MulScalar(ctx->camera.right, ctx->camera.speed));
+            moved = true;
+        }
+        if(glfwGetKey(ctx->window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+            ctx->camera.pos = vec3Add(ctx->camera.pos, vec3MulScalar(ctx->camera.up, ctx->camera.speed));
+            moved = true;
+        }
+        if(glfwGetKey(ctx->window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
+            ctx->camera.pos = vec3Sub(ctx->camera.pos, vec3MulScalar(ctx->camera.up, ctx->camera.speed));
+            moved = true;
+        }
+    }
+
+    // Mouse Input
+    {
+        if(glfwGetMouseButton(ctx->window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS) {
+            double xpos = ctx->mouseX;
+            double ypos = ctx->mouseY;
+
+            if(ctx->camera.firstMouse) {
+                glfwSetInputMode(ctx->window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+                ctx->camera.lastX = xpos;
+                ctx->camera.lastY = ypos;
+                ctx->camera.firstMouse = false;
+            }
+
+            float xDelta = (xpos - ctx->camera.lastX);
+            float yDelta = (ctx->camera.lastY - ypos);
+
+            ctx->camera.lastX = xpos;
+            ctx->camera.lastY = ypos;
+
+            if(xDelta != 0 || yDelta != 0) {
+                xDelta *= ctx->camera.sensitivity;
+                yDelta *= ctx->camera.sensitivity;
+
+                ctx->camera.yaw += xDelta;
+                ctx->camera.pitch += yDelta;
+                
+                if(ctx->camera.pitch > 89.9f)
+                    ctx->camera.pitch = 89.9f;
+                if(ctx->camera.pitch < -89.9f)
+                    ctx->camera.pitch = -89.9f;
+
+                Vec3 front;
+                front.x = cos(ctx->camera.yaw * DEG2RAD_MULTIPLIER) * cos(ctx->camera.pitch * DEG2RAD_MULTIPLIER);
+                front.y = sin(ctx->camera.pitch * DEG2RAD_MULTIPLIER);
+                front.z = sin(ctx->camera.yaw * DEG2RAD_MULTIPLIER) * cos(ctx->camera.pitch * DEG2RAD_MULTIPLIER);
+                
+                ctx->camera.front = vec3Normalize(front);
+
+                moved = true;
+            }
+        }
+        else if(glfwGetMouseButton(ctx->window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_RELEASE) {
+            glfwSetInputMode(ctx->window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            ctx->camera.firstMouse = true;
+        }
+    }
+    // Updating matrices
+    {
+        ctx->camera.right = vec3Normalize(vec3Cross(vec3Create(0, 1, 0), ctx->camera.front));
+        ctx->camera.up = vec3Normalize(vec3Cross(ctx->camera.front, ctx->camera.right));
+
+        if(!moved)
+            return;
+        
+        ctx->camera.proj = mat4Perspective(ctx->camera.fov * DEG2RAD_MULTIPLIER, ctx->camera.aspectRatio, 0.01f, 1000.0f);
+        ctx->camera.view = mat4LookAt(ctx->camera.pos, vec3Add(ctx->camera.pos, ctx->camera.front), ctx->camera.up);
+    }
+}
+
 int main(void) {
     Ctx ctx = {
         .width = 1200,
@@ -207,6 +340,8 @@ int main(void) {
 
             glBindTexture(GL_TEXTURE_2D, 0);
         }
+        // Camera
+        createCamera(&ctx);
     }
 
     //Main loop
@@ -215,20 +350,30 @@ int main(void) {
     glEnable(GL_DEPTH_TEST);
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     while(!glfwWindowShouldClose(ctx.window)) {
+        // Render
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
         glUseProgram(ctx.shader);
+        putMat4Shader(ctx.shader, "u_Proj", ctx.camera.proj);
+        putMat4Shader(ctx.shader, "u_View", ctx.camera.view);
+
         glBindTexture(GL_TEXTURE_2D, ctx.tex);
         glActiveTexture(GL_TEXTURE0);
         glUniform1i(glGetUniformLocation(ctx.shader, "u_Tex"), 0);
 
         glBindVertexArray(ctx.vao);
         glDrawArrays(GL_TRIANGLES, 0, 6);
-
+        
+        // Update
+        if(glfwGetKey(ctx.window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+            break;
+        }
         if(glfwGetKey(ctx.window, GLFW_KEY_R) == GLFW_PRESS) {
             glDeleteProgram(ctx.shader);
             createShader(&ctx);
         }
+        glfwGetCursorPos(ctx.window, &ctx.mouseX, &ctx.mouseY);
+
+        updateCamera(&ctx);
 
         glfwSwapBuffers(ctx.window);
         glfwPollEvents();
