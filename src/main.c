@@ -14,7 +14,7 @@
 #define ARR_LEN(arr) (sizeof(arr)/sizeof(arr[0]))
 
 #define INFO(msg, ...) do { fprintf(stdout, "INFO: "); fprintf(stdout, msg, ##__VA_ARGS__); } while(0)
-#define ERROR(msg, ...) do { fprintf(stderr, "ERROR :"); fprintf(stderr, msg, ##__VA_ARGS__); exit(1); } while(0)
+#define ERROR(msg, ...) do { fprintf(stderr, "ERROR: "); fprintf(stderr, msg, ##__VA_ARGS__); exit(1); } while(0)
 
 #define MAX_HEIGHT 50
 #define GRID_WIDTH 200 
@@ -50,6 +50,7 @@ typedef struct {
 
     uint32_t shader;
     uint32_t vao, vbo, ebo;
+    uint32_t tex;
     uint32_t count;
     
     uint32_t* data;
@@ -344,7 +345,6 @@ int main(void) {
             glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
             glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
             glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
-            glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
             ctx.window = glfwCreateWindow(ctx.width, ctx.height, "PerlinTerrain", 0, 0);
             if(!ctx.window)
@@ -358,6 +358,22 @@ int main(void) {
             ctx.data = malloc(GRID_HEIGHT * GRID_WIDTH * sizeof(uint32_t));
             memset(ctx.data, 0, sizeof(uint32_t) * GRID_WIDTH * GRID_HEIGHT);
             getHeight(GRID_WIDTH, GRID_HEIGHT, ctx.data);
+        }
+        // Texture 
+        {
+            glGenTextures(1, &ctx.tex);
+            glBindTexture(GL_TEXTURE_2D, ctx.tex);
+
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, GRID_WIDTH, GRID_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, ctx.data);
+
+            glGenerateMipmap(GL_TEXTURE_2D);
+
+            glBindTexture(GL_TEXTURE_2D, 0);
         }
         //Shader
         createShader(&ctx);
@@ -378,6 +394,13 @@ int main(void) {
         glUseProgram(ctx.shader);
         putMat4Shader(ctx.shader, "u_Proj", ctx.camera.proj);
         putMat4Shader(ctx.shader, "u_View", ctx.camera.view);
+        glUniform2f(glGetUniformLocation(ctx.shader, "u_TexRes"), (float)GRID_WIDTH, (float)GRID_HEIGHT);
+        glUniform1f(glGetUniformLocation(ctx.shader, "u_MaxHeight"), (float)MAX_HEIGHT);
+        glUniform3f(glGetUniformLocation(ctx.shader, "u_LightPos"), 1000.0f, 1000.0f, 0.0f);
+        
+        glBindTexture(GL_TEXTURE_2D, ctx.tex);
+        glActiveTexture(GL_TEXTURE0);
+        glUniform1i(glGetUniformLocation(ctx.shader, "u_Tex"), 0);
 
         glBindVertexArray(ctx.vao);
         glDrawElements(GL_TRIANGLES, ctx.count, GL_UNSIGNED_INT, 0);
@@ -391,6 +414,8 @@ int main(void) {
             createShader(&ctx);
         }
         glfwGetCursorPos(ctx.window, &ctx.mouseX, &ctx.mouseY);
+        glfwGetWindowSize(ctx.window, &ctx.width, &ctx.height);
+        glViewport(0, 0, ctx.width, ctx.height);
 
         updateCamera(&ctx);
 
@@ -401,6 +426,8 @@ int main(void) {
     // Cleanup
     {
         free(ctx.data);
+
+        glDeleteTextures(1, &ctx.tex);
 
         glDeleteBuffers(1, &ctx.ebo);
         glDeleteBuffers(1, &ctx.vbo);
