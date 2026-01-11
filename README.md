@@ -1,6 +1,6 @@
 # PerlinTerrain
 This is a test project which I made to play around with perlin noise for terrain generation.
-Please excuse me since I can't gurantee that the buildsystem is cross-platform (It was a test project so I didn't intetgrate a proper cross-platform buildsystem).
+Excuse me since I can't guarantee that the buildsystem is cross-platform (It was a test project so I didn't integrate a proper cross-platform buildsystem).
 
 The language I am using is C and am rendering using OpenGL and GLFW. For perlin noise algorithm, 
 I am using stb_perlin since it is quite a popular single header library.
@@ -17,3 +17,7 @@ The platform I am using :-
  - [x] Used the data from the heightmap on the terrain's vertices
  - [x] Generated the surface normal for each triangle of the terrain and did some diffuse lighting
  - [ ] Make the terrain infinite
+
+# Glimpses
+![Heightmap](./screenshot/terrain0.png)
+![Terrain with diffuse lighting](./screenshot/terrain1.png)
