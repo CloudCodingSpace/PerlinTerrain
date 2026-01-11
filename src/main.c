@@ -16,10 +16,10 @@
 #define INFO(msg, ...) do { fprintf(stdout, "INFO: "); fprintf(stdout, msg, ##__VA_ARGS__); } while(0)
 #define ERROR(msg, ...) do { fprintf(stderr, "ERROR: "); fprintf(stderr, msg, ##__VA_ARGS__); exit(1); } while(0)
 
-#define OCTAVES 10
+#define OCTAVES 12
 #define MAX_HEIGHT 100
-#define GRID_WIDTH 500 
-#define GRID_HEIGHT 500
+#define GRID_WIDTH 300 
+#define GRID_HEIGHT 300
 
 typedef struct {
     float aspectRatio;
@@ -46,7 +46,8 @@ typedef struct {
     int width;
     int height;
     double mouseX, mouseY;
-    
+    double deltaTime, lastTime;
+
     Camera camera;
 
     uint32_t shader;
@@ -88,7 +89,7 @@ float getPerlin2D(float x, float y, int octaves) {
     float max = 0.0f;
 
     for(int i = 0; i < octaves; i++) {
-        v += stb_perlin_noise3(x * frequency, y * frequency, 0, 0, 0, 0) * amplitude;
+        v += stb_perlin_noise3(x * frequency, 0, y * frequency, 0, 0, 0) * amplitude;
         max += amplitude;
         frequency *= 2.0f;
         amplitude *= 0.5f;
@@ -407,6 +408,7 @@ int main(void) {
         putMat4Shader(ctx.shader, "u_View", ctx.camera.view);
         glUniform2f(glGetUniformLocation(ctx.shader, "u_TexRes"), (float)GRID_WIDTH, (float)GRID_HEIGHT);
         glUniform1f(glGetUniformLocation(ctx.shader, "u_MaxHeight"), (float)MAX_HEIGHT);
+        glUniform1f(glGetUniformLocation(ctx.shader, "u_Ambient"), 0.01f);
         glUniform3f(glGetUniformLocation(ctx.shader, "u_LightPos"), 1000.0f, 1000.0f, 0.0f);
         
         glBindTexture(GL_TEXTURE_2D, ctx.tex);
@@ -421,7 +423,6 @@ int main(void) {
             break;
         }
         if(glfwGetKey(ctx.window, GLFW_KEY_R) == GLFW_PRESS) {
-            //glDeleteProgram(ctx.shader);
             uint32_t id;
             if(createShader(&ctx, &id)) {
                 glDeleteProgram(ctx.shader);
@@ -431,6 +432,13 @@ int main(void) {
         glfwGetCursorPos(ctx.window, &ctx.mouseX, &ctx.mouseY);
         glfwGetWindowSize(ctx.window, &ctx.width, &ctx.height);
         glViewport(0, 0, ctx.width, ctx.height);
+
+        double crntTime = glfwGetTime();
+        ctx.deltaTime = crntTime - ctx.lastTime;
+        ctx.lastTime = crntTime;
+        char title[100];
+        snprintf(title, sizeof(char) * 100, "PerlinTerrain | Delta time :- %.2fms | FPS :- %.2f", ctx.deltaTime * 1000, 1.0/ctx.deltaTime);
+        glfwSetWindowTitle(ctx.window, title);
 
         updateCamera(&ctx);
 
