@@ -17,8 +17,8 @@
 #define ERROR(msg, ...) do { fprintf(stderr, "ERROR: "); fprintf(stderr, msg, ##__VA_ARGS__); exit(1); } while(0)
 
 #define MAX_HEIGHT 50
-#define GRID_WIDTH 200 
-#define GRID_HEIGHT 200
+#define GRID_WIDTH 100 
+#define GRID_HEIGHT 100
 
 typedef struct {
     float aspectRatio;
@@ -111,7 +111,7 @@ void getHeight(uint32_t width, uint32_t height, uint32_t* data) {
     }
 }
 
-void createShader(Ctx* ctx) {
+bool createShader(Ctx* ctx, uint32_t* id) {
     char log[512];
     int success = false;
     const char* vertStr = readFile("shaders/default.vert");
@@ -124,7 +124,8 @@ void createShader(Ctx* ctx) {
     glGetShaderiv(vID, GL_COMPILE_STATUS, &success);
     if(!success) {
         glGetShaderInfoLog(vID, 512, 0, log);
-        ERROR(log);
+        fprintf(stderr, log);
+        return false;
     }
     fID = glCreateShader(GL_FRAGMENT_SHADER);
     glShaderSource(fID, 1, &fragStr, 0);
@@ -132,22 +133,23 @@ void createShader(Ctx* ctx) {
     glGetShaderiv(fID, GL_COMPILE_STATUS, &success);
     if(!success) {
         glGetShaderInfoLog(fID, 512, 0, log);
-        ERROR(log);
+        fprintf(stderr, log);
+        return false;
     }
 
-    ctx->shader = glCreateProgram();
-    glAttachShader(ctx->shader, vID);
-    glAttachShader(ctx->shader, fID);
-    glLinkProgram(ctx->shader);
-    glValidateProgram(ctx->shader);
-    glGetProgramiv(ctx->shader, GL_LINK_STATUS, &success);
+    *id = glCreateProgram();
+    glAttachShader(*id, vID);
+    glAttachShader(*id, fID);
+    glLinkProgram(*id);
+    glValidateProgram(*id);
+    glGetProgramiv(*id, GL_LINK_STATUS, &success);
     if(!success) {
-        glGetProgramInfoLog(ctx->shader, 1024, 0, log);
+        glGetProgramInfoLog(*id, 1024, 0, log);
         ERROR(log);
     }
-    glGetProgramiv(ctx->shader, GL_VALIDATE_STATUS, &success);
+    glGetProgramiv(*id, GL_VALIDATE_STATUS, &success);
     if(!success) {
-        glGetProgramInfoLog(ctx->shader, 1024, 0, log);
+        glGetProgramInfoLog(*id, 1024, 0, log);
         ERROR(log);
     }
 
@@ -174,8 +176,8 @@ void createCamera(Ctx* ctx) {
     ctx->camera.speed = 0.01f;
     ctx->camera.sensitivity = 0.05f;
 
-    ctx->camera.pos = vec3Create(0, 0, 3);
-    ctx->camera.front = vec3Create(0, 0, -1);
+    ctx->camera.pos = vec3Create(0, 100, 3);
+    ctx->camera.front = vec3Create(0, 0, -1);    
     ctx->camera.up = vec3Create(0, 1, 0);
     ctx->camera.right = vec3Normalize(vec3Cross(ctx->camera.up, ctx->camera.front));
 
@@ -376,7 +378,8 @@ int main(void) {
             glBindTexture(GL_TEXTURE_2D, 0);
         }
         //Shader
-        createShader(&ctx);
+        if(!createShader(&ctx, &ctx.shader))
+            exit(1);
         // Buffers 
         createTerrain(&ctx);
         // Camera
@@ -410,8 +413,12 @@ int main(void) {
             break;
         }
         if(glfwGetKey(ctx.window, GLFW_KEY_R) == GLFW_PRESS) {
-            glDeleteProgram(ctx.shader);
-            createShader(&ctx);
+            //glDeleteProgram(ctx.shader);
+            uint32_t id;
+            if(createShader(&ctx, &id)) {
+                glDeleteProgram(ctx.shader);
+                ctx.shader = id;
+            }
         }
         glfwGetCursorPos(ctx.window, &ctx.mouseX, &ctx.mouseY);
         glfwGetWindowSize(ctx.window, &ctx.width, &ctx.height);
