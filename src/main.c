@@ -399,6 +399,8 @@ int main(void) {
     glfwShowWindow(ctx.window);
     glViewport(0, 0, ctx.width, ctx.height);
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     while(!glfwWindowShouldClose(ctx.window)) {
         // Render
@@ -428,6 +430,11 @@ int main(void) {
                 glDeleteProgram(ctx.shader);
                 ctx.shader = id;
             }
+        }
+        if(glfwGetKey(ctx.window, GLFW_KEY_B) == GLFW_PRESS) {
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        } else if(glfwGetKey(ctx.window, GLFW_KEY_B) == GLFW_RELEASE) {
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
         }
         glfwGetCursorPos(ctx.window, &ctx.mouseX, &ctx.mouseY);
         glfwGetWindowSize(ctx.window, &ctx.width, &ctx.height);

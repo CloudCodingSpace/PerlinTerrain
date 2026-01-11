@@ -18,6 +18,15 @@ The platform I am using :-
  - [x] Generated the surface normal for each triangle of the terrain and did some diffuse lighting
  - [ ] Make the terrain infinite
 
+# Controls
+ - W, A, S & D for movement
+ - Space for going up (relative to the camera)
+ - Left Shift for going down (relative to the camera)
+ - Hold B for wireframe mode
+ - R for reloading shaders (For devs)
+ - Escape to exit
+ - Right click to move the camera with mouse
+
 # Glimpses
 ![Heightmap](./screenshot/terrain0.png)
 ![Terrain with diffuse lighting](./screenshot/terrain1.png)
