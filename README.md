@@ -24,6 +24,7 @@ The platform I am using :-
  - Left Shift for going down (relative to the camera)
  - Hold B for wireframe mode
  - R for reloading shaders (For devs)
+ - G for regenerating the heightmap and the terrain (1s cooldown after each use)
  - Escape to exit
  - Right click to move the camera with mouse
 

@@ -8,18 +8,20 @@
 #include <math.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 
 #include "maths.h"
 
 #define ARR_LEN(arr) (sizeof(arr)/sizeof(arr[0]))
 
 #define INFO(msg, ...) do { fprintf(stdout, "INFO: "); fprintf(stdout, msg, ##__VA_ARGS__); } while(0)
-#define ERROR(msg, ...) do { fprintf(stderr, "ERROR: "); fprintf(stderr, msg, ##__VA_ARGS__); exit(1); } while(0)
+#define ERROR(msg, ...) do { fprintf(stderr, "ERROR: "); fprintf(stderr, msg, ##__VA_ARGS__); } while(0)
 
 #define OCTAVES 12
 #define MAX_HEIGHT 100
 #define GRID_WIDTH 300 
 #define GRID_HEIGHT 300
+#define TERRAIN_GENERATE_COOLDOWN 1.0
 
 typedef struct {
     float aspectRatio;
@@ -82,14 +84,14 @@ uint32_t rgbToInt(uint8_t r, uint8_t b, uint8_t g) {
     return (uint32_t)((0xFF << 24) | (b << 16) | (g << 8) | r);
 }
 
-float getPerlin2D(float x, float y, int octaves) {
+float getPerlin2D(float x, float y, int octaves, int seed) {
     float v = 0.0f;
     float amplitude = 1.0f;
     float frequency = 1.0f;
     float max = 0.0f;
 
     for(int i = 0; i < octaves; i++) {
-        v += stb_perlin_noise3(x * frequency, 0, y * frequency, 0, 0, 0) * amplitude;
+        v += stb_perlin_noise3_seed(x * frequency, 0, y * frequency, 0, 0, 0, seed) * amplitude;
         max += amplitude;
         frequency *= 2.0f;
         amplitude *= 0.5f;
@@ -101,10 +103,12 @@ float getPerlin2D(float x, float y, int octaves) {
 void getHeight(uint32_t width, uint32_t height, uint32_t* data) {
     size_t size = width * height;
 
+    int seed = time(0);
+
     float scale = 0.025f;
     for(uint32_t y = 0; y < height; y++) {
         for(uint32_t x = 0; x < width; x++) {
-            float noise = getPerlin2D(x * scale, y * scale, OCTAVES);
+            float noise = getPerlin2D(x * scale, y * scale, OCTAVES, seed);
             noise = noise * 0.5f + 0.5f;
             noise *= 255;
 
@@ -126,7 +130,7 @@ bool createShader(Ctx* ctx, uint32_t* id) {
     glGetShaderiv(vID, GL_COMPILE_STATUS, &success);
     if(!success) {
         glGetShaderInfoLog(vID, 512, 0, log);
-        fprintf(stderr, log);
+        ERROR(log);
         return false;
     }
     fID = glCreateShader(GL_FRAGMENT_SHADER);
@@ -135,7 +139,7 @@ bool createShader(Ctx* ctx, uint32_t* id) {
     glGetShaderiv(fID, GL_COMPILE_STATUS, &success);
     if(!success) {
         glGetShaderInfoLog(fID, 512, 0, log);
-        fprintf(stderr, log);
+        ERROR(log);
         return false;
     }
 
@@ -148,11 +152,13 @@ bool createShader(Ctx* ctx, uint32_t* id) {
     if(!success) {
         glGetProgramInfoLog(*id, 1024, 0, log);
         ERROR(log);
+        return false;
     }
     glGetProgramiv(*id, GL_VALIDATE_STATUS, &success);
     if(!success) {
         glGetProgramInfoLog(*id, 1024, 0, log);
         ERROR(log);
+        return false;
     }
 
     glDeleteShader(vID);
@@ -350,19 +356,25 @@ int main(void) {
     {
         // Window
         {
-            if(!glfwInit())
+            if(!glfwInit()) {
                 ERROR("Couldnt't init glfw!\n");
+                exit(1);
+            }
             glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
             glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
             glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
             glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 
             ctx.window = glfwCreateWindow(ctx.width, ctx.height, "PerlinTerrain", 0, 0);
-            if(!ctx.window)
+            if(!ctx.window) {
                 ERROR("Couldn't create glfw window!\n");
+                exit(1);
+            }
             glfwMakeContextCurrent(ctx.window);
-            if(!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+            if(!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
                 ERROR("Couldn't load opengl!\n");
+                exit(1);
+            }
         }
         //Height map 
         {
@@ -429,6 +441,29 @@ int main(void) {
             if(createShader(&ctx, &id)) {
                 glDeleteProgram(ctx.shader);
                 ctx.shader = id;
+            }
+        }
+        if(glfwGetKey(ctx.window, GLFW_KEY_G) == GLFW_PRESS) {
+            static double lastTimeG = 0.0;
+            double ct = glfwGetTime();
+            double dt = ct - lastTimeG;
+            lastTimeG = ct;
+            if(dt < TERRAIN_GENERATE_COOLDOWN) {
+                ERROR("Wait for cooldown,%.2fs left!\n", TERRAIN_GENERATE_COOLDOWN - dt);
+            } else {
+                INFO("%f\n", dt);
+                free(ctx.data);
+            
+                ctx.data = malloc(GRID_HEIGHT * GRID_WIDTH * sizeof(uint32_t));
+                memset(ctx.data, 0, sizeof(uint32_t) * GRID_WIDTH * GRID_HEIGHT);
+                getHeight(GRID_WIDTH, GRID_HEIGHT, ctx.data);
+            
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, GRID_WIDTH, GRID_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, ctx.data);
+                
+                glDeleteBuffers(1, &ctx.ebo);
+                glDeleteBuffers(1, &ctx.vbo);
+                glDeleteVertexArrays(1, &ctx.vao);
+                createTerrain(&ctx);
             }
         }
         if(glfwGetKey(ctx.window, GLFW_KEY_B) == GLFW_PRESS) {
