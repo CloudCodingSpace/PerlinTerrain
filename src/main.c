@@ -16,9 +16,10 @@
 #define INFO(msg, ...) do { fprintf(stdout, "INFO: "); fprintf(stdout, msg, ##__VA_ARGS__); } while(0)
 #define ERROR(msg, ...) do { fprintf(stderr, "ERROR: "); fprintf(stderr, msg, ##__VA_ARGS__); exit(1); } while(0)
 
-#define MAX_HEIGHT 50
-#define GRID_WIDTH 100 
-#define GRID_HEIGHT 100
+#define OCTAVES 10
+#define MAX_HEIGHT 100
+#define GRID_WIDTH 500 
+#define GRID_HEIGHT 500
 
 typedef struct {
     float aspectRatio;
@@ -99,10 +100,10 @@ float getPerlin2D(float x, float y, int octaves) {
 void getHeight(uint32_t width, uint32_t height, uint32_t* data) {
     size_t size = width * height;
 
-    float scale = 0.01f;
+    float scale = 0.025f;
     for(uint32_t y = 0; y < height; y++) {
         for(uint32_t x = 0; x < width; x++) {
-            float noise = getPerlin2D(x * scale, y * scale, 4);
+            float noise = getPerlin2D(x * scale, y * scale, OCTAVES);
             noise = noise * 0.5f + 0.5f;
             noise *= 255;
 
@@ -276,7 +277,9 @@ void updateCamera(Ctx* ctx) {
 }
 
 void createTerrain(Ctx* ctx) {
-    float data[GRID_WIDTH * GRID_HEIGHT * 3];
+    size_t size = GRID_HEIGHT * GRID_WIDTH * 3 * sizeof(float);
+    float* data = malloc(size);
+    memset(data, 0, size);
     int idx = 0;
     for(uint32_t y = 0; y < GRID_HEIGHT; y++) {
         for(uint32_t x = 0; x < GRID_WIDTH; x++) {
@@ -295,7 +298,9 @@ void createTerrain(Ctx* ctx) {
 
     uint32_t indicesLen = (GRID_WIDTH - 1) * (GRID_HEIGHT - 1) * 6;
     ctx->count = indicesLen;
-    uint32_t indices[indicesLen];
+    uint32_t* indices = malloc(indicesLen * sizeof(uint32_t));
+    memset(indices, 0, indicesLen * sizeof(uint32_t));
+
     idx = 0;
     for(uint32_t y = 0; y < GRID_HEIGHT-1; y++) {
         for(uint32_t x = 0; x < GRID_WIDTH-1; x++) {
@@ -321,7 +326,7 @@ void createTerrain(Ctx* ctx) {
     glBindVertexArray(ctx->vao);
 
     glBindBuffer(GL_ARRAY_BUFFER, ctx->vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(float) * ARR_LEN(data), data, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, size, data, GL_STATIC_DRAW);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
@@ -329,6 +334,9 @@ void createTerrain(Ctx* ctx) {
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint32_t) * ctx->count, indices, GL_STATIC_DRAW);
 
     glBindVertexArray(0);
+
+    free(indices);
+    free(data);
 }
 
 int main(void) {
