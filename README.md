@@ -30,3 +30,4 @@ The platform I am using :-
 # Glimpses
 ![Heightmap](./screenshot/terrain0.png)
 ![Terrain with diffuse lighting](./screenshot/terrain1.png)
+![Terrain in wireframe mode](./screenshot/terrain2.png)
