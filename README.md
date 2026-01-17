@@ -16,7 +16,7 @@ The platform I am using :-
  - [x] Rendered a small piece of flat terrain
  - [x] Used the data from the heightmap on the terrain's vertices
  - [x] Generated the surface normal for each triangle of the terrain and did some diffuse lighting
- - [ ] Make the terrain infinite
+ - [x] Can change parameters of the app using command line arguments.
 
 # Controls
  - W, A, S & D for movement

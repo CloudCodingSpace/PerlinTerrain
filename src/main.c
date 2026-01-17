@@ -418,6 +418,8 @@ void parseArgs(Settings* settings, int argc, const char** argv) {
             settings->gridHeight = parseArg(argv[i]);
         } else if(startsWith(argv[i], "maxHeight")) {
             settings->maxHeight = parseArg(argv[i]);
+        } else {
+            ERROR("Invalid command line argument! Use '--help' for more information!\n");
         }
     }
 }
