@@ -109,7 +109,7 @@ float getPerlin2D(float x, float y, int octaves, int seed) {
     return v/max;
 }
 
-void getHeight(uint32_t width, uint32_t height, uint32_t* data) {
+void getHeight(uint32_t octaves, uint32_t width, uint32_t height, uint32_t* data) {
     size_t size = width * height;
 
     int seed = time(0);
@@ -117,7 +117,7 @@ void getHeight(uint32_t width, uint32_t height, uint32_t* data) {
     float scale = 0.025f;
     for(uint32_t y = 0; y < height; y++) {
         for(uint32_t x = 0; x < width; x++) {
-            float noise = getPerlin2D(x * scale, y * scale, OCTAVES, seed);
+            float noise = getPerlin2D(x * scale, y * scale, octaves, seed);
             noise = noise * 0.5f + 0.5f;
             noise *= 255;
 
@@ -460,7 +460,7 @@ int main(int argc, const char** argv) {
         {
             ctx.data = malloc(ctx.settings.gridHeight * ctx.settings.gridWidth * sizeof(uint32_t));
             memset(ctx.data, 0, sizeof(uint32_t) * ctx.settings.gridHeight * ctx.settings.gridWidth);
-            getHeight(ctx.settings.gridWidth, ctx.settings.gridHeight, ctx.data);
+            getHeight(ctx.settings.octaves, ctx.settings.gridWidth, ctx.settings.gridHeight, ctx.data);
         }
         // Texture 
         {
@@ -528,15 +528,14 @@ int main(int argc, const char** argv) {
             double ct = glfwGetTime();
             double dt = ct - lastTimeG;
             lastTimeG = ct;
-            if(dt < TERRAIN_GENERATE_COOLDOWN) {
-                ERROR("Wait for cooldown,%.2fs left!\n", TERRAIN_GENERATE_COOLDOWN - dt);
+            if(dt < ctx.settings.terrainGenCooldown) {
+                ERROR("Wait for cooldown,%.2fs left!\n", ctx.settings.terrainGenCooldown - dt);
             } else {
-                INFO("%f\n", dt);
                 free(ctx.data);
             
                 ctx.data = malloc(ctx.settings.gridWidth * ctx.settings.gridHeight * sizeof(uint32_t));
                 memset(ctx.data, 0, sizeof(uint32_t) * ctx.settings.gridWidth * ctx.settings.gridHeight);
-                getHeight(ctx.settings.gridWidth, ctx.settings.gridHeight, ctx.data);
+                getHeight(ctx.settings.octaves, ctx.settings.gridWidth, ctx.settings.gridHeight, ctx.data);
             
                 glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ctx.settings.gridWidth, ctx.settings.gridHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, ctx.data);
                 
