@@ -24,6 +24,13 @@
 #define TERRAIN_GENERATE_COOLDOWN 1.0
 
 typedef struct {
+    int octaves;
+    int maxHeight;
+    int gridWidth, gridHeight;
+    double terrainGenCooldown;
+} Settings;
+
+typedef struct {
     float aspectRatio;
     float fov;
     float lastX;
@@ -44,6 +51,8 @@ typedef struct {
 } Camera;
 
 typedef struct {
+    Settings settings;
+
     GLFWwindow* window;
     int width;
     int height;
@@ -284,18 +293,18 @@ void updateCamera(Ctx* ctx) {
 }
 
 void createTerrain(Ctx* ctx) {
-    size_t size = GRID_HEIGHT * GRID_WIDTH * 3 * sizeof(float);
+    size_t size = ctx->settings.gridHeight * ctx->settings.gridWidth * 3 * sizeof(float);
     float* data = malloc(size);
     memset(data, 0, size);
     int idx = 0;
-    for(uint32_t y = 0; y < GRID_HEIGHT; y++) {
-        for(uint32_t x = 0; x < GRID_WIDTH; x++) {
-            float x1 = (x - (GRID_WIDTH - 1)/2.0f);
-            float z1 = (y - (GRID_HEIGHT - 1)/2.0f);
+    for(uint32_t y = 0; y < ctx->settings.gridHeight; y++) {
+        for(uint32_t x = 0; x < ctx->settings.gridWidth; x++) {
+            float x1 = (x - (ctx->settings.gridWidth - 1)/2.0f);
+            float z1 = (y - (ctx->settings.gridHeight - 1)/2.0f);
             
-            uint32_t noise = ctx->data[y * GRID_WIDTH + x] & 0xff;
+            uint32_t noise = ctx->data[y * ctx->settings.gridWidth + x] & 0xff;
             float y1 = noise / 255.0f;
-            y1 *= MAX_HEIGHT;
+            y1 *= ctx->settings.maxHeight;
 
             data[idx++] = x1;
             data[idx++] = y1;
@@ -303,18 +312,18 @@ void createTerrain(Ctx* ctx) {
         }
     }
 
-    uint32_t indicesLen = (GRID_WIDTH - 1) * (GRID_HEIGHT - 1) * 6;
+    uint32_t indicesLen = (ctx->settings.gridWidth - 1) * (ctx->settings.gridHeight - 1) * 6;
     ctx->count = indicesLen;
     uint32_t* indices = malloc(indicesLen * sizeof(uint32_t));
     memset(indices, 0, indicesLen * sizeof(uint32_t));
 
     idx = 0;
-    for(uint32_t y = 0; y < GRID_HEIGHT-1; y++) {
-        for(uint32_t x = 0; x < GRID_WIDTH-1; x++) {
-            uint32_t v0 = y * GRID_WIDTH + x;
-            uint32_t v1 = y * GRID_WIDTH + (x + 1);
-            uint32_t v2 = (y+1) * GRID_WIDTH + x;
-            uint32_t v3 = (y+1) * GRID_WIDTH + (x+1);
+    for(uint32_t y = 0; y < ctx->settings.gridHeight-1; y++) {
+        for(uint32_t x = 0; x < ctx->settings.gridWidth-1; x++) {
+            uint32_t v0 = y * ctx->settings.gridWidth + x;
+            uint32_t v1 = y * ctx->settings.gridWidth + (x + 1);
+            uint32_t v2 = (y+1) * ctx->settings.gridWidth + x;
+            uint32_t v3 = (y+1) * ctx->settings.gridWidth + (x+1);
 
             indices[idx++] = v0;
             indices[idx++] = v2;
@@ -346,11 +355,80 @@ void createTerrain(Ctx* ctx) {
     free(data);
 }
 
-int main(void) {
+int parseArg(const char* arg) {
+    int val = -1.0;
+    int len = strlen(arg);
+    int idx = -1;
+    bool a = false; 
+    for(int i = 0; i < len; i++) {
+        char c = arg[i];
+        if(c == '=')
+            a = true;
+        if((c >= (int)'0') && (c <= (int)'9') && a) {
+            idx = i;
+            break;
+        }
+    }
+
+    if(idx == -1) {
+        ERROR("Parse Issue :- No value provided!\n");
+        exit(1);
+    }
+
+    val = atoi(arg + idx);
+
+    if(val < 0) {
+        ERROR("Parse Issue :- No value provided!\n");
+        exit(1);
+    }
+    
+    return val;
+}
+
+bool startsWith(const char* str, const char* start) {
+    return strncmp(str, start, strlen(start)) == 0;
+}
+
+void parseArgs(Settings* settings, int argc, const char** argv) {
+    settings->gridHeight = GRID_HEIGHT;
+    settings->gridWidth = GRID_WIDTH;
+    settings->maxHeight = MAX_HEIGHT;
+    settings->terrainGenCooldown = TERRAIN_GENERATE_COOLDOWN;
+    settings->octaves = OCTAVES;
+
+    if(argc == 1)
+        return;
+    for(int i = 1; i < argc; i++) {
+        if(strcmp(argv[i], "--help") == 0) {
+            INFO("Args (if not provided one, then it will use the default value) :- \n"
+                 "\toctaves: Number of octaves\n"
+                 "\tmaxHeight: Max. height of the terrain\n"
+                 "\t'width' & 'height': Dimensions of the terrain\n"
+                 "\tterrainCooldown: Time for cooldown in seconds\n\0");
+            return;
+        }
+
+        if(startsWith(argv[i], "octaves")) {
+            settings->octaves = parseArg(argv[i]);
+        } else if(startsWith(argv[i], "terrainCooldown")) {
+            settings->terrainGenCooldown = parseArg(argv[i]);
+        } else if(startsWith(argv[i], "width")) {
+            settings->gridWidth = parseArg(argv[i]);
+        } else if(startsWith(argv[i], "height")) {
+            settings->gridHeight = parseArg(argv[i]);
+        } else if(startsWith(argv[i], "maxHeight")) {
+            settings->maxHeight = parseArg(argv[i]);
+        }
+    }
+}
+
+int main(int argc, const char** argv) {
     Ctx ctx = {
         .width = 1200,
         .height = 720
     };
+
+    parseArgs(&ctx.settings, argc, argv);
 
     // Init
     {
@@ -378,9 +456,9 @@ int main(void) {
         }
         //Height map 
         {
-            ctx.data = malloc(GRID_HEIGHT * GRID_WIDTH * sizeof(uint32_t));
-            memset(ctx.data, 0, sizeof(uint32_t) * GRID_WIDTH * GRID_HEIGHT);
-            getHeight(GRID_WIDTH, GRID_HEIGHT, ctx.data);
+            ctx.data = malloc(ctx.settings.gridHeight * ctx.settings.gridWidth * sizeof(uint32_t));
+            memset(ctx.data, 0, sizeof(uint32_t) * ctx.settings.gridHeight * ctx.settings.gridWidth);
+            getHeight(ctx.settings.gridWidth, ctx.settings.gridHeight, ctx.data);
         }
         // Texture 
         {
@@ -392,7 +470,7 @@ int main(void) {
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, GRID_WIDTH, GRID_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, ctx.data);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ctx.settings.gridWidth, ctx.settings.gridHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, ctx.data);
 
             glGenerateMipmap(GL_TEXTURE_2D);
 
@@ -420,8 +498,8 @@ int main(void) {
         glUseProgram(ctx.shader);
         putMat4Shader(ctx.shader, "u_Proj", ctx.camera.proj);
         putMat4Shader(ctx.shader, "u_View", ctx.camera.view);
-        glUniform2f(glGetUniformLocation(ctx.shader, "u_TexRes"), (float)GRID_WIDTH, (float)GRID_HEIGHT);
-        glUniform1f(glGetUniformLocation(ctx.shader, "u_MaxHeight"), (float)MAX_HEIGHT);
+        glUniform2f(glGetUniformLocation(ctx.shader, "u_TexRes"), (float)ctx.settings.gridWidth, (float)ctx.settings.gridHeight);
+        glUniform1f(glGetUniformLocation(ctx.shader, "u_MaxHeight"), (float)ctx.settings.maxHeight);
         glUniform1f(glGetUniformLocation(ctx.shader, "u_Ambient"), 0.01f);
         glUniform3f(glGetUniformLocation(ctx.shader, "u_LightPos"), 1000.0f, 1000.0f, 0.0f);
         
@@ -454,11 +532,11 @@ int main(void) {
                 INFO("%f\n", dt);
                 free(ctx.data);
             
-                ctx.data = malloc(GRID_HEIGHT * GRID_WIDTH * sizeof(uint32_t));
-                memset(ctx.data, 0, sizeof(uint32_t) * GRID_WIDTH * GRID_HEIGHT);
-                getHeight(GRID_WIDTH, GRID_HEIGHT, ctx.data);
+                ctx.data = malloc(ctx.settings.gridWidth * ctx.settings.gridHeight * sizeof(uint32_t));
+                memset(ctx.data, 0, sizeof(uint32_t) * ctx.settings.gridWidth * ctx.settings.gridHeight);
+                getHeight(ctx.settings.gridWidth, ctx.settings.gridHeight, ctx.data);
             
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, GRID_WIDTH, GRID_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, ctx.data);
+                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, ctx.settings.gridWidth, ctx.settings.gridHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, ctx.data);
                 
                 glDeleteBuffers(1, &ctx.ebo);
                 glDeleteBuffers(1, &ctx.vbo);

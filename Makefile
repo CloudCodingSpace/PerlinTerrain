@@ -9,5 +9,5 @@ build:
 run:
 	cls
 	echo Starting app ...
-	./main
+	./main $(args)
 	echo Done!
