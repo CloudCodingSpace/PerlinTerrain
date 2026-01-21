@@ -175,6 +175,8 @@ bool createShader(Ctx* ctx, uint32_t* id) {
 
     free((void*)vertStr);
     free((void*)fragStr);
+
+    return true;
 }
 
 void putMat4Shader(uint32_t id, const char* name, Mat4 mat) {
